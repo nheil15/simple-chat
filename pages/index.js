@@ -23,7 +23,8 @@ export default function Home() {
   const typingTimerRef = useRef(null);
 
   useEffect(() => {
-    const socket = io({ path: "/api/socket" });
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || undefined;
+    const socket = io(socketUrl, { path: "/api/socket", transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
     socket.on("connect", () => {
