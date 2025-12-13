@@ -28,6 +28,7 @@ body {
     var(--bg);
   color: var(--text);
   min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom, 0);
   overflow: hidden;
 }
 
@@ -42,11 +43,12 @@ button {
 .container {
   max-width: 960px;
   margin: 0 auto;
-  padding: 32px 20px 32px;
-  height: 100vh;
+  padding: 16px 12px;
+  /* Use a dynamic app height set from JS to avoid mobile viewport jumps */
+  height: var(--app-height, 100vh);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -84,7 +86,7 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: var(--shadow);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 16px;
   height: 100%;
   margin-bottom: 2px;
   display: flex;
@@ -95,29 +97,101 @@ button {
 
 @media (max-width: 720px) {
   .container {
-    padding: 20px 14px 24px;
+    padding: 12px 10px;
+    gap: 6px;
   }
 
   .panel {
-    padding: 16px;
+    padding: 12px;
     margin-bottom: 2px;
   }
 
   .chat-box {
     min-height: 0;
+    gap: 8px;
   }
 
   .log {
     max-height: none;
   }
 
+  .actions {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+
+  .actions > div:first-child {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .actions > div:last-child {
+    order: 2;
+    width: 100%;
+  }
+
+  .actions button {
+    padding: 10px 12px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 70px;
+  }
+
+  .status {
+    font-size: 12px;
+    padding: 6px 10px;
+    justify-content: center;
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+  }
+
   .composer {
     grid-template-columns: 1fr;
-    grid-auto-rows: auto;
+    gap: 8px;
+  }
+
+  .composer textarea {
+    min-height: 40px;
+    padding: 10px;
+    font-size: 14px;
   }
 
   .composer button {
     width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .system-note {
+    padding: 3px 0;
+    font-size: 12px;
+  }
+
+  .message .bubble {
+    max-width: 85%;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  textarea {
+    padding: 10px;
+  }
+
+  button.primary {
+    padding: 10px 12px;
+  }
+
+  button.secondary {
+    padding: 10px 12px;
   }
 }
 
@@ -194,8 +268,8 @@ button {
   max-height: none;
   flex: 1;
   height: 0;
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
 }
 
 .log::-webkit-scrollbar {
@@ -218,8 +292,21 @@ button {
 
 .message {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   align-items: start;
+  margin: 2px 0; /* default vertical spacing between messages */
+}
+
+/* tighter spacing when same author sends consecutive messages */
+.log > .message.you + .message.you,
+.log > .message.stranger + .message.stranger,
+.log > .message.system + .message.system {
+  margin-top: 1px;
+}
+
+/* remove extra top margin for the very first message */
+.log > .message:first-child {
+  margin-top: 0;
 }
 
 .message.you {
@@ -320,6 +407,11 @@ button {
   grid-template-columns: 1fr auto auto;
   gap: 10px;
   flex-shrink: 0;
+  position: sticky;
+  bottom: env(safe-area-inset-bottom, 0);
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.85), rgba(17, 24, 39, 0.95));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0));
+  z-index: 5;
 }
 
 textarea {

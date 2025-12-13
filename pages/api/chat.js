@@ -85,11 +85,11 @@ export default async function handler(req, res) {
         if (partnerId) {
           state.partners.delete(userId);
           state.partners.delete(partnerId);
-          await pusher.trigger(`user-${partnerId}`, "partnerLeft", {});
+          await pusher.trigger(`user-${partnerId}`, "partnerSkipped", {});
         }
         
-        state.waiting.add(userId);
-        await pusher.trigger(`user-${userId}`, "waiting", {});
+        state.waiting.delete(userId);
+        await pusher.trigger(`user-${userId}`, "stopped", {});
         break;
       }
 

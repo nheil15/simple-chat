@@ -15,12 +15,14 @@ export default function Home() {
   const [systemNote, setSystemNote] = useState("Hit Start to begin.");
   const [confirmNext, setConfirmNext] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const [showStrangerNote, setShowStrangerNote] = useState(false);
   const [userId] = useState(() => crypto.randomUUID());
   const pusherRef = useRef(null);
   const channelRef = useRef(null);
   const logRef = useRef(null);
   const nextResetRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const showNoteTimerRef = useRef(null);
 
   const apiCall = async (action, data = {}) => {
     try {
@@ -68,11 +70,21 @@ export default function Home() {
     channel.bind("partnerFound", () => {
       setStatus("chatting");
       pushSystem("You're now chatting with a stranger. Be kind!");
+      // show a short-lived placeholder indicating stranger arrived
+      setShowStrangerNote(true);
+      if (showNoteTimerRef.current) clearTimeout(showNoteTimerRef.current);
+      showNoteTimerRef.current = setTimeout(() => setShowStrangerNote(false), 8000);
     });
 
     channel.bind("chatMessage", (data) => {
       if (!data?.text) return;
       pushMessage("stranger", data.text);
+      // remove placeholder when first real message arrives
+      setShowStrangerNote(false);
+      if (showNoteTimerRef.current) {
+        clearTimeout(showNoteTimerRef.current);
+        showNoteTimerRef.current = null;
+      }
     });
 
     channel.bind("typing", () => {
@@ -89,6 +101,12 @@ export default function Home() {
       setSystemNote("Ready. Press Start to find a stranger.");
     });
 
+    channel.bind("partnerSkipped", () => {
+      pushMessage("system", "Stranger skipped you.");
+      setStatus("connected");
+      setSystemNote("Ready. Press Start to find a stranger.");
+    });
+
     channel.bind("stopped", () => {
       setStatus("connected");
       setSystemNote("Stopped. Start when you are ready.");
@@ -98,8 +116,48 @@ export default function Home() {
       channel.unbind_all();
       channel.unsubscribe();
       pusher.disconnect();
+      if (showNoteTimerRef.current) {
+        clearTimeout(showNoteTimerRef.current);
+        showNoteTimerRef.current = null;
+      }
     };
   }, [userId]);
+
+  // Set a CSS variable with the app's inner height to avoid mobile
+  // viewport jumps when the on-screen keyboard appears. We update the
+  // variable on resize/orientation/focus events so the layout uses the
+  // value of `window.innerHeight` rather than unstable viewport units.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let resizeTimer = null;
+    const setAppHeight = () => {
+      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+    };
+
+    const onResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setAppHeight();
+        resizeTimer = null;
+      }, 50);
+    };
+
+    setAppHeight();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", setAppHeight);
+    // focusin/focusout helps when the keyboard opens on mobile
+    window.addEventListener("focusin", setAppHeight);
+    window.addEventListener("focusout", setAppHeight);
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", setAppHeight);
+      window.removeEventListener("focusin", setAppHeight);
+      window.removeEventListener("focusout", setAppHeight);
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!logRef.current) return;
@@ -123,6 +181,16 @@ export default function Home() {
   }, []);
 
   const pushMessage = (author, text) => {
+    // Hide the transient "Stranger is in the chat." placeholder when any real
+    // message is added (either by you or the stranger).
+    if (author === "you" || author === "stranger") {
+      setShowStrangerNote(false);
+      if (showNoteTimerRef.current) {
+        clearTimeout(showNoteTimerRef.current);
+        showNoteTimerRef.current = null;
+      }
+    }
+
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), author, text }]);
   };
 
@@ -132,6 +200,8 @@ export default function Home() {
 
   const startChat = () => {
     setMessages([]);
+    // reset any transient placeholder from previous sessions
+    setShowStrangerNote(false);
     setSystemNote("Connecting…");
     setConfirmNext(false);
     apiCall("findPartner");
@@ -140,6 +210,7 @@ export default function Home() {
   const sendMessage = () => {
     const trimmed = input.trim();
     if (!trimmed || status !== "chatting") return;
+    // locally add message and hide any transient placeholder
     pushMessage("you", trimmed);
     apiCall("sendMessage", { message: trimmed });
     setInput("");
@@ -164,6 +235,9 @@ export default function Home() {
 
     pushSystem("Ending chat…");
     setConfirmNext(false);
+    pushMessage("system", "You skipped.");
+    setStatus("connected");
+    setSystemNote("Ready. Press Start to find a stranger.");
     apiCall("next");
   };
 
@@ -186,8 +260,8 @@ export default function Home() {
     <div className="container">
       <div className="grid">
         <div className="panel chat-box">
-          <div className="actions" style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", gap: 10 }}>
+          <div className="actions" style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flex: 1 }}>
               <button className="primary" onClick={startChat} disabled={status === "waiting" || status === "chatting"}>
                 Start
               </button>
@@ -195,23 +269,23 @@ export default function Home() {
                 Stop
               </button>
             </div>
-            <div className={`status ${currentStatus.className}`}>
+            <div className={`status ${currentStatus.className}`} style={{ minWidth: "100px" }}>
               <span className="status-dot" />
               <span>{currentStatus.label}</span>
             </div>
           </div>
 
           <div className="log" ref={logRef}>
-            {messages.length === 0 && (
+            {status === "chatting" && (
               <div className="message system">
-                <div className="bubble">No messages yet.</div>
+                <div className="bubble">Stranger is in the chat.</div>
               </div>
             )}
-             {messages.map((msg) => (
-               <div key={msg.id} className={`message ${msg.author}`}>
-                 <div className="bubble">{msg.text}</div>
-               </div>
-             ))}
+            {messages.map((msg) => (
+              <div key={msg.id} className={`message ${msg.author}`}>
+                <div className="bubble">{msg.text}</div>
+              </div>
+            ))}
           </div>
           <div className="system-note" aria-live="polite">
             <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
