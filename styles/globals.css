@@ -404,7 +404,8 @@ button {
 
 .composer {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  /* Next | Textarea | Send */
+  grid-template-columns: auto 1fr auto;
   gap: 10px;
   flex-shrink: 0;
   position: sticky;

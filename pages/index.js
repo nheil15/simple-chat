@@ -301,6 +301,9 @@ export default function Home() {
           </div>
 
           <div className="composer">
+            <button className="secondary" onClick={handleNext} disabled={!canChat && status !== "waiting"}>
+              {confirmNext ? "Sure?" : "Next"}
+            </button>
             <textarea
               rows={2}
               placeholder={canChat ? "Type a message…" : "Wait for a match to chat"}
@@ -316,9 +319,6 @@ export default function Home() {
             />
             <button className="primary" onClick={sendMessage} disabled={!canChat || !input.trim()}>
               Send
-            </button>
-            <button className="secondary" onClick={handleNext} disabled={!canChat && status !== "waiting"}>
-              {confirmNext ? "Sure?" : "Next"}
             </button>
           </div>
         </div>
