@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import Pusher from "pusher-js";
 
 const statusCopy = {
   disconnected: { label: "Offline", className: "offline" },
@@ -16,38 +16,68 @@ export default function Home() {
   const [confirmNext, setConfirmNext] = useState(false);
   const [botMode, setBotMode] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
-  const socketRef = useRef(null);
+  const [userId] = useState(() => crypto.randomUUID());
+  const pusherRef = useRef(null);
+  const channelRef = useRef(null);
   const logRef = useRef(null);
   const nextResetRef = useRef(null);
   const botTimerRef = useRef(null);
   const typingTimerRef = useRef(null);
 
-  useEffect(() => {
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || undefined;
-    const socket = io(socketUrl, { path: "/api/socket", transports: ["websocket", "polling"] });
-    socketRef.current = socket;
+  const apiCall = async (action, data = {}) => {
+    try {
+      await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, userId, ...data }),
+      });
+    } catch (error) {
+      console.error("API call failed:", error);
+    }
+  };
 
-    socket.on("connect", () => {
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
+      setStatus("disconnected");
+      setSystemNote("Setup required: Add Pusher credentials to Vercel environment variables");
+      console.error("Missing Pusher credentials. Add NEXT_PUBLIC_PUSHER_KEY and NEXT_PUBLIC_PUSHER_CLUSTER to your environment variables.");
+      return;
+    }
+
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    });
+    pusherRef.current = pusher;
+
+    const channel = pusher.subscribe(`user-${userId}`);
+    channelRef.current = channel;
+
+    pusher.connection.bind("connected", () => {
       setStatus("connected");
       setSystemNote("Ready. Press Start to find a stranger.");
     });
 
-    socket.on("waiting", () => {
+    pusher.connection.bind("disconnected", () => {
+      setStatus("disconnected");
+      setSystemNote("Offline. Check connection and refresh if needed.");
+    });
+
+    channel.bind("waiting", () => {
       setStatus("waiting");
       pushSystem("Looking for a stranger…");
     });
 
-    socket.on("partnerFound", () => {
+    channel.bind("partnerFound", () => {
       setStatus("chatting");
       pushSystem("You're now chatting with a stranger. Be kind!");
     });
 
-    socket.on("chatMessage", (payload) => {
-      if (!payload?.text) return;
-      pushMessage("stranger", payload.text);
+    channel.bind("chatMessage", (data) => {
+      if (!data?.text) return;
+      pushMessage("stranger", data.text);
     });
 
-    socket.on("typing", () => {
+    channel.bind("typing", () => {
       setPartnerTyping(true);
       if (typingTimerRef.current) {
         clearTimeout(typingTimerRef.current);
@@ -55,26 +85,23 @@ export default function Home() {
       typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 1600);
     });
 
-    socket.on("partnerLeft", () => {
+    channel.bind("partnerLeft", () => {
       pushSystem("Stranger left. Click Next to find someone new.");
       setStatus("connected");
       setSystemNote("Ready. Press Start to find a stranger.");
     });
 
-    socket.on("stopped", () => {
+    channel.bind("stopped", () => {
       setStatus("connected");
       setSystemNote("Stopped. Start when you are ready.");
     });
 
-    socket.on("disconnect", () => {
-      setStatus("disconnected");
-      setSystemNote("Offline. Check connection and refresh if needed.");
-    });
-
     return () => {
-      socket.disconnect();
+      channel.unbind_all();
+      channel.unsubscribe();
+      pusher.disconnect();
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (!logRef.current) return;
@@ -118,7 +145,7 @@ export default function Home() {
     setSystemNote("Connecting…");
     setConfirmNext(false);
     setBotMode(false);
-    socketRef.current?.emit("findPartner");
+    apiCall("findPartner");
   };
 
   const startBotChat = () => {
@@ -155,7 +182,7 @@ export default function Home() {
         botTimerRef.current = null;
       }, 800 + Math.random() * 900);
     } else {
-      socketRef.current?.emit("chatMessage", trimmed);
+      apiCall("sendMessage", { message: trimmed });
     }
     setInput("");
     setPartnerTyping(false);
@@ -190,12 +217,12 @@ export default function Home() {
       return;
     }
 
-    socketRef.current?.emit("next");
+    apiCall("next");
   };
 
   const handleStop = () => {
     if (status !== "waiting") return;
-    socketRef.current?.emit("stopFinding");
+    apiCall("stop");
   };
 
   const handleKey = (e) => {
@@ -263,7 +290,7 @@ export default function Home() {
               onChange={(e) => {
                 setInput(e.target.value);
                 if (!botMode && status === "chatting") {
-                  socketRef.current?.emit("typing");
+                  apiCall("typing");
                 }
               }}
               onKeyDown={handleKey}

@@ -24,6 +24,15 @@ export default function handler(req, res) {
   if (!res.socket.server.io) {
     const io = new Server(res.socket.server, {
       path: "/api/socket",
+      addTrailingSlash: false,
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      },
+      transports: ["polling", "websocket"],
+      allowUpgrades: true,
+      pingTimeout: 60000,
+      pingInterval: 25000,
     });
 
     io.on("connection", (socket) => {
