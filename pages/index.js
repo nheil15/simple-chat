@@ -14,14 +14,12 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [systemNote, setSystemNote] = useState("Hit Start to begin.");
   const [confirmNext, setConfirmNext] = useState(false);
-  const [botMode, setBotMode] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [userId] = useState(() => crypto.randomUUID());
   const pusherRef = useRef(null);
   const channelRef = useRef(null);
   const logRef = useRef(null);
   const nextResetRef = useRef(null);
-  const botTimerRef = useRef(null);
   const typingTimerRef = useRef(null);
 
   const apiCall = async (action, data = {}) => {
@@ -124,14 +122,6 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (botTimerRef.current) {
-        clearTimeout(botTimerRef.current);
-      }
-    };
-  }, []);
-
   const pushMessage = (author, text) => {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), author, text }]);
   };
@@ -144,46 +134,14 @@ export default function Home() {
     setMessages([]);
     setSystemNote("Connecting…");
     setConfirmNext(false);
-    setBotMode(false);
     apiCall("findPartner");
-  };
-
-  const startBotChat = () => {
-    if (botTimerRef.current) {
-      clearTimeout(botTimerRef.current);
-    }
-    setBotMode(true);
-    setMessages([]);
-    setSystemNote("Chatting with a test bot. Type to see replies.");
-    setStatus("chatting");
-    setConfirmNext(false);
-    pushMessage("system", "Bot joined the room.");
   };
 
   const sendMessage = () => {
     const trimmed = input.trim();
     if (!trimmed || status !== "chatting") return;
     pushMessage("you", trimmed);
-    if (botMode) {
-      if (botTimerRef.current) {
-        clearTimeout(botTimerRef.current);
-      }
-      setPartnerTyping(true);
-      botTimerRef.current = setTimeout(() => {
-        const canned = [
-          "Hey there! I'm just a test bot.",
-          "I echo: " + trimmed,
-          "Try 'Next' to reset me.",
-          "Type something else!",
-        ];
-        const reply = canned[Math.floor(Math.random() * canned.length)];
-        pushMessage("stranger", reply);
-        setPartnerTyping(false);
-        botTimerRef.current = null;
-      }, 800 + Math.random() * 900);
-    } else {
-      apiCall("sendMessage", { message: trimmed });
-    }
+    apiCall("sendMessage", { message: trimmed });
     setInput("");
     setPartnerTyping(false);
   };
@@ -206,17 +164,6 @@ export default function Home() {
 
     pushSystem("Ending chat…");
     setConfirmNext(false);
-
-    if (botMode) {
-      if (botTimerRef.current) {
-        clearTimeout(botTimerRef.current);
-        botTimerRef.current = null;
-      }
-      setBotMode(false);
-      setStatus("connected");
-      return;
-    }
-
     apiCall("next");
   };
 
@@ -246,9 +193,6 @@ export default function Home() {
               </button>
               <button className="secondary danger" onClick={handleStop} disabled={status !== "waiting"}>
                 Stop
-              </button>
-              <button className="secondary" onClick={startBotChat} disabled={status === "waiting" || status === "chatting"}>
-                Bot test
               </button>
             </div>
             <div className={`status ${currentStatus.className}`}>
@@ -289,7 +233,7 @@ export default function Home() {
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
-                if (!botMode && status === "chatting") {
+                if (status === "chatting") {
                   apiCall("typing");
                 }
               }}
