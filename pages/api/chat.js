@@ -43,13 +43,17 @@ export default async function handler(req, res) {
         if (state.waiting.size > 0) {
           const partnerId = [...state.waiting][0];
           state.waiting.delete(partnerId);
-          
+
           state.partners.set(userId, partnerId);
           state.partners.set(partnerId, userId);
-          
+
+          // Make the peer who was waiting the initiator for deterministic behavior
+          const initiatorId = partnerId;
+          console.log("Pairing:", userId, "<->", partnerId, "initiator:", initiatorId);
+
           await Promise.all([
-            pusher.trigger(`user-${userId}`, "partnerFound", {}),
-            pusher.trigger(`user-${partnerId}`, "partnerFound", {}),
+            pusher.trigger(`user-${userId}`, "partnerFound", { partnerId, initiator: initiatorId }),
+            pusher.trigger(`user-${partnerId}`, "partnerFound", { partnerId: userId, initiator: initiatorId }),
           ]);
         } else {
           state.waiting.add(userId);
@@ -90,6 +94,38 @@ export default async function handler(req, res) {
         
         state.waiting.delete(userId);
         await pusher.trigger(`user-${userId}`, "stopped", {});
+        break;
+      }
+
+      // Simple WebRTC signaling proxy events. Payloads are forwarded to
+      // the current partner so peers can exchange SDP and ICE candidates.
+      case "webrtc-offer": {
+        const { offer } = req.body;
+        const partnerId = state.partners.get(userId);
+        console.log("webrtc-offer from", userId, "to", partnerId);
+        if (partnerId && offer) {
+          await pusher.trigger(`user-${partnerId}`, "webrtc-offer", { offer, from: userId });
+        }
+        break;
+      }
+
+      case "webrtc-answer": {
+        const { answer } = req.body;
+        const partnerId = state.partners.get(userId);
+        console.log("webrtc-answer from", userId, "to", partnerId);
+        if (partnerId && answer) {
+          await pusher.trigger(`user-${partnerId}`, "webrtc-answer", { answer, from: userId });
+        }
+        break;
+      }
+
+      case "webrtc-ice": {
+        const { candidate } = req.body;
+        const partnerId = state.partners.get(userId);
+        console.log("webrtc-ice from", userId, "to", partnerId);
+        if (partnerId && candidate) {
+          await pusher.trigger(`user-${partnerId}`, "webrtc-ice", { candidate, from: userId });
+        }
         break;
       }
 

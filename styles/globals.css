@@ -155,20 +155,41 @@ button {
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    /* keep composer a single-line flex row on small screens */
+    display: flex;
     gap: 8px;
+    align-items: center;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .composer textarea {
     min-height: 40px;
     padding: 10px;
     font-size: 14px;
+    /* allow textarea to shrink in flexbox */
+    min-width: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    padding-right: 8px; /* space to avoid overlap with send button */
+    box-sizing: border-box;
   }
 
   .composer button {
-    width: 100%;
-    padding: 10px 12px;
+    /* keep buttons compact on mobile so they remain on one line */
+    flex: 0 0 auto;
+    padding: 8px 10px;
     font-size: 13px;
+    min-width: 56px !important; /* override inline styles */
+    line-height: 1;
+  }
+
+  /* Slightly reduce gap on very narrow screens */
+  @media (max-width: 420px) {
+    .composer { gap: 6px; }
+    .composer button { padding: 7px 8px; min-width: 50px !important; }
+    .composer textarea { padding-right: 6px; }
   }
 
   .system-note {
@@ -270,6 +291,71 @@ button {
   height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* overlay shown when video is active to display recent chat messages */
+.video-overlay {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 45%;
+  /* allow scrolling when many messages accumulate */
+  max-height: 45%;
+  overflow-y: auto;
+  padding-right: 8px; /* room for scroll gestures */
+  pointer-events: auto; /* enable scroll gestures */
+  /* hide native scrollbar but keep scrollable */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  scrollbar-color: transparent transparent;
+}
+
+.video-overlay-msg {
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  opacity: 0.9;
+  max-width: 100%;
+  word-break: break-word;
+  pointer-events: none; /* allow scroll on container while keeping messages non-interactive */
+}
+
+/* WebKit scrollbar styling for the overlay */
+.video-overlay::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+.video-overlay::-webkit-scrollbar-track {
+  background: transparent;
+}
+.video-overlay::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.video-overlay-msg.you {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34,197,94,0.2);
+  color: #d1fae5;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.video-overlay-msg.stranger {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56,189,248,0.2);
+  color: #e0f2fe;
+  align-self: flex-start;
+  text-align: left;
+}
+
+/* Ensure overlay container is left-aligned but can grow to right; on small screens limit width */
+@media (max-width: 480px) {
+  .video-overlay { max-width: 70%; left: 8px; bottom: 8px; }
 }
 
 .log::-webkit-scrollbar {
@@ -403,9 +489,7 @@ button {
 }
 
 .composer {
-  display: grid;
-  /* Next | Textarea | Send */
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   gap: 10px;
   flex-shrink: 0;
   position: sticky;
@@ -413,6 +497,15 @@ button {
   background: linear-gradient(135deg, rgba(17, 24, 39, 0.85), rgba(17, 24, 39, 0.95));
   padding-bottom: calc(env(safe-area-inset-bottom, 0));
   z-index: 5;
+}
+
+.composer textarea {
+  min-width: 0; /* allow flex children to shrink on small screens */
+  width: auto; /* override global textarea width:100% so flex sizing works */
+}
+
+.composer button {
+  flex: 0 0 auto;
 }
 
 textarea {
